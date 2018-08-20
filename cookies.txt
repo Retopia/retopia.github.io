@@ -1,0 +1,5 @@
+# HTTrack Website Copier Cookie File
+# This file format is compatible with Netscape cookies
+.skimresources.com	TRUE	/	FALSE	1999999999	skimGUID	303edd0de00e4f3661fab9e22fb51b9d
+.skimresources.com	TRUE	/	FALSE	1999999999	skimSESS	bcb6e17c05f9c89e9f314bf5339ae2fd
+
