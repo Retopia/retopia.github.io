@@ -1,0 +1,3 @@
+msg=Thank you for using QuickRead - Preston Tang
+version=1.0.0
+link=
