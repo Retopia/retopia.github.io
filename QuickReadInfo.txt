@@ -1,3 +1,3 @@
-msg=Thank you for using QuickRead, I made this program in an effort to be good at computer programming again like I was back in middle school :PP&n&n- Preston Tang
+msg=Thank you for using QuickRead, I made this program in an effort to be good at computer programming again like I was back in middle school. Sadly it had to be a skill that was lost with time. :PP&n&n- Preston Tang
 version=1.0.0
 link=
