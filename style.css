@@ -22,3 +22,27 @@ body {
     background-repeat: no-repeat;
     background-size: cover;
 }
+
+/* Create two columns/boxes that floats next to each other */
+
+.desc {
+    float: left;
+    width: 30%;
+    height: 300px;
+    padding: 10px;
+    font-size: 25px;
+}
+
+.desc2 {
+    float: right;
+    width: 35%;
+    height: 300px;
+    padding: 20px;
+    font-size: 25px;
+}
+
+section::after {
+    content: "";
+    display: table;
+    clear: both;
+}
