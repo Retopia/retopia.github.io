@@ -1,0 +1,3 @@
+# retopia.github.io
+
+This is just a simple website I made for my Web Design class in high school, might change it to host my JS and HTML projects in the future. However, since I'm mainly a Java programmer, that probably won't ever happen...
