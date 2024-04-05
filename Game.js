@@ -13,8 +13,8 @@ export class Game {
             backgroundColor: 0xffffff
         });
 
-        this.file = "./Maps/level10.txt"; // Start from level 1
-        this.currentLevel = 10; // Add a property to track the current level
+        this.file = "./Maps/level1.txt"; // Start from level 1
+        this.currentLevel = 1; // Add a property to track the current level
 
         this.physicalMap = []; // All the physical walls
         this.tanks = [];
