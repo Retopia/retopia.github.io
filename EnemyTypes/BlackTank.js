@@ -1,11 +1,11 @@
 import { FireBullet } from "../BulletTypes/FireBullet.js";
 import { AStarPathfinder } from "../AStarPathfinder.js";
 import { Node } from "../Node.js";
-export class GreenTank {
+export class BlackTank {
 
     constructor(x, y, width, height, speed) {
         this.body = PIXI.Sprite.from(PIXI.Texture.WHITE);
-        this.body.tint = 0x009530;
+        this.body.tint = 0x000000;
 
         this.setPosition(x, y);
         this.setSize(width, height);
@@ -19,10 +19,10 @@ export class GreenTank {
         this.wallPathChangeTime = 120;
         this.wallPathChangeTimeAccumulator = 0;
 
-        this.maxBullets = 1;
+        this.maxBullets = 5;
 
         this.shotDelayAccumulator = 0;
-        this.shotDelay = Math.random() * (100 - 60) + 60;
+        this.shotDelay = Math.random() * (60 - 30) + 30;
 
         this.targetDestination = null;
 
@@ -34,7 +34,6 @@ export class GreenTank {
         this.turret.y = this.body.height / 2 - this.turret.height / 2; // Center of the tank's height
 
         this.body.addChild(this.turret);
-        this.prevLine = null;
 
         this.alive = true;
     }
@@ -426,7 +425,7 @@ export class GreenTank {
         if (this.shotDelayAccumulator > this.shotDelay) {
             canShoot = true;
             this.shotDelayAccumulator = 0;
-            this.shotDelay = Math.random() * (100 - 60) + 60;
+            this.shotDelay = Math.random() * (60 - 30) + 30;
         }
 
         // This section is on shooting  

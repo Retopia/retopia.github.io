@@ -4,6 +4,8 @@ import { BrownTank } from "./EnemyTypes/BrownTank.js"
 import { GreyTank } from "./EnemyTypes/GrayTank.js";
 import { GreenTank } from "./EnemyTypes/GreenTank.js";
 import { PinkTank } from "./EnemyTypes/PinkTank.js";
+import { BlackTank } from "./EnemyTypes/BlackTank.js";
+import { RLTank } from "./EnemyTypes/RLTank.js";
 
 export class Game {
     constructor() {
@@ -29,6 +31,17 @@ export class Game {
         this.mouseY = 0;
         this.player = new Player(700, 100, 18, 18, 2, this.app);
         this.loadedLevel = false;
+
+        this.replayBuffer = [];
+        this.replayBufferSize = 10000;  // Maximum buffer size
+
+        this.stepCount = 0;
+
+        this.teamA = [];
+        this.teamB = [];
+
+        this.isPlayerPlayable = true;
+        this.playerSelectorValue = 'player';
     }
 
     setup() {
@@ -46,7 +59,7 @@ export class Game {
     initGame(loadedData) {
         this.updateMap(loadedData);
 
-        this.app.ticker.speed = 1;
+        this.app.ticker.speed = 1.0;
         this.app.ticker.maxFPS = 0;
         this.app.ticker.add((delta) => this.gameLoop(delta));
 
@@ -61,11 +74,39 @@ export class Game {
         });
 
         this.app.renderer.plugins.interaction.on('pointerdown', (e) => {
-            if (e.data.button === 0) {
+            if (e.data.button === 0 && this.player instanceof Player) {
                 const bullet = this.player.fireBullet();
                 if (bullet) {
                     this.app.stage.addChild(bullet.body);
                     this.allBullets.push(bullet);
+                }
+            }
+        });
+
+        document.getElementById('playerSelect').addEventListener('change', (event) => {
+            let selectedValue = event.target.value;
+            this.playerSelectorValue = selectedValue;
+            this.reloadCurrentLevel();
+        });
+
+        document.getElementById('slider').addEventListener('input', (event) => {
+            let selectedValue = event.target.value;
+            this.app.ticker.speed = selectedValue;
+        });
+
+        document.getElementById('sliderResetButton').addEventListener('click', (event) => {
+            document.getElementById('slider').value = 1.0;
+            this.app.ticker.speed = 1.0;
+        });
+
+        document.getElementById('levelInput').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                let selectedValue = event.target.value;
+                if (selectedValue >= 1 && selectedValue <= 10) {
+                    this.file = "./Maps/level" + selectedValue + ".txt";
+                    this.currentLevel = parseInt(selectedValue);
+                    this.reloadCurrentLevel();
+                    event.target.value = '';
                 }
             }
         });
@@ -293,16 +334,57 @@ export class Game {
                 }
 
                 if (inputMap[i][j] === 3) {
-                    this.player = new Player(j * this.cellWidth, i * this.cellHeight, 18, 18, 2, this.app);
-                    newTank = new Player(j * this.cellWidth, i * this.cellHeight, 18, 18, 2, this.app);
-                    this.tanks.push(this.player)
+                    switch (this.playerSelectorValue) {
+                        case 'player':
+                            newTank = new Player(j * this.cellWidth, i * this.cellHeight, 18, 18, 2);
+                            break;
+
+                        case 'brown':
+                            newTank = new BrownTank(j * this.cellWidth, i * this.cellHeight, 18, 18);
+                            break;
+
+                        case 'grey':
+                            newTank = new GreyTank(j * this.cellWidth, i * this.cellHeight, 18, 18, 1.4);
+                            break;
+
+                        case 'green':
+                            newTank = new GreenTank(j * this.cellWidth, i * this.cellHeight, 18, 18, 1.75);
+                            break;
+
+                        case 'pink':
+                            newTank = new PinkTank(j * this.cellWidth, i * this.cellHeight, 18, 18, 2);
+                            break;
+
+                        case 'black':
+                            newTank = new BlackTank(j * this.cellWidth, i * this.cellHeight, 18, 18, 2.25);
+                            break;
+
+                        case 'rl':
+                            newTank = new RLTank(j * this.cellWidth, i * this.cellHeight, 18, 18, 2);
+                            newTank.createModel();
+                            break;
+                    }
+
+                    if (this.playerSelectorValue === 'player') {
+                        this.isPlayerPlayable = true;
+                    } else {
+                        this.isPlayerPlayable = false;
+                        if (!(newTank instanceof RLTank)) {
+                            newTank.setPathfinder(this.physicalMap);
+                        }
+                    }
+
+                    this.player = newTank;
+                    this.tanks.push(this.player);
                     this.app.stage.addChild(this.player.body);
+                    this.teamA.push(this.player);
                 }
 
                 if (inputMap[i][j] === 4) {
                     newTank = new BrownTank(j * this.cellWidth, i * this.cellHeight, 18, 18);
                     this.tanks.push(newTank);
                     this.app.stage.addChild(newTank.body);
+                    this.teamB.push(newTank);
                     // Brown tank is stationary, needs no pathfinder
                 }
 
@@ -311,6 +393,7 @@ export class Game {
                     this.tanks.push(newTank);
                     this.app.stage.addChild(newTank.body);
                     newTank.setPathfinder(this.physicalMap);
+                    this.teamB.push(newTank);
                 }
 
                 if (inputMap[i][j] === 6) {
@@ -318,6 +401,7 @@ export class Game {
                     this.tanks.push(newTank);
                     this.app.stage.addChild(newTank.body);
                     newTank.setPathfinder(this.physicalMap);
+                    this.teamB.push(newTank);
                 }
 
                 if (inputMap[i][j] === 7) {
@@ -325,6 +409,7 @@ export class Game {
                     this.tanks.push(newTank);
                     this.app.stage.addChild(newTank.body);
                     newTank.setPathfinder(this.physicalMap);
+                    this.teamB.push(newTank);
                 }
             }
         }
@@ -368,6 +453,7 @@ export class Game {
 
 
     async reloadCurrentLevel() {
+        this.loadedLevel = false;
         let currentLevelFile = `./Maps/level${this.currentLevel}.txt`;
 
         try {
@@ -375,74 +461,151 @@ export class Game {
             if (loadedData) {
                 this.resetGame();
                 this.updateMap(loadedData);
-                this.loadedLevel = true;
             } else {
                 console.error("Error reloading the current level.");
             }
         } catch (error) {
             console.error("Error reloading the current level:", error);
         }
+        this.loadedLevel = true;
     }
 
     resetGame() {
         this.allBullets = [];
         this.tanks = [];
+        this.teamA = [];
+        this.teamB = [];
         this.app.stage.removeChildren();
     }
 
+    isTeamADead() {
+        for (let t = 0; t < this.teamA.length; t++) {
+            let tank = this.teamA[t];
+            if (tank.isAlive) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     gameLoop(delta) {
-        this.updateGridDangerValues(this.allBullets, this.player, 1.0, 1.0, 25);
-        // this.updateGridColors(0.5);
-        this.player.update(delta, this.collisionLines, this.mouseX, this.mouseY, this.physicalMap, this.app);
+        this.stepCount += 1;
 
-        // Updating all tanks
-        for (let t = 0; t < this.tanks.length; t++) {
-            let tank = this.tanks[t];
+        // Level system
+        if (this.isTeamADead()) {
+            this.reloadCurrentLevel();
+        }
 
-            // Bullets shot by the player are handled differently
-            // Currently all AIs can only shoot 1 bullet at a time
-            // May add future tank that can shoot multiple
-            if (tank != this.player) {
-                let firedBullets = tank.update(delta, this.physicalMap, this.player, this.collisionLines, this.allBullets, this.tanks, this.app)
+        if (this.loadedLevel && this.tanks.length === 1 && this.tanks[0] === this.player) {
+            this.advanceToNextLevel();
+        }
+
+        if (this.loadedLevel) {
+            this.updateGridDangerValues(this.allBullets, this.player, 1.0, 1.0, 25);
+            // this.updateGridColors(0.5);
+
+            // This is just for updating the flags for the RL
+            for (let i = this.allBullets.length - 1; i >= 0; i--) {
+                let bullet = this.allBullets[i];
+                let collided = this.checkCollision(bullet);
+                if (collided) {
+                    // For the RL Agent
+                    // Basically if the agent shot a tank that's not itself
+                    if (this.playerSelectorValue === 'rl') {
+                        if (this.player instanceof RLTank && bullet.owner == this.player && collided.tank != this.player) {
+                            this.player.setHitEnemy(true);
+                        }
+
+                        if (this.player instanceof RLTank && bullet.owner == this.player && collided.tank == this.player) {
+                            this.player.gotHitBySelf = true;
+                        }
+
+                        if (this.player instanceof RLTank && collided.tank == this.player) {
+                            this.player.setGotHit(true);
+                        }
+                    }
+                }
+            }
+
+            // Loop through Team A tanks
+            for (let t = 0; t < this.teamA.length; t++) {
+                // Player should always be in teamA
+                let tank = this.teamA[t];
+                let firedBullets = null;
+                if (tank instanceof Player) {
+                    // Shooting for players is handled separately
+                    this.player.update(delta, this.collisionLines, this.mouseX, this.mouseY, this.physicalMap);
+                } else if (tank instanceof RLTank) {
+                    // Handles update to the replay buffer
+                    let returnedData = tank.update(delta, this.physicalMap, this.player, this.collisionLines, this.allBullets, this.teamA, this.teamB, this.replayBuffer, this.stepCount)
+                    firedBullets = returnedData[0];
+                    this.replayBuffer.push(returnedData[1]);
+
+                    if (this.replayBuffer.length > this.replayBufferSize) {
+                        this.replayBuffer.shift();  // Remove the oldest experience if the buffer is full
+                    }
+
+                } else {
+                    firedBullets = tank.update(delta, this.physicalMap, this.player, this.collisionLines, this.allBullets, this.teamA, this.teamB);
+                }
 
                 if (firedBullets && firedBullets.length > 0) {
                     for (let i = 0; i < firedBullets.length; i++) {
                         this.app.stage.addChild(firedBullets[i].body);
                         this.allBullets.push(firedBullets[i])
                     }
+
                 }
             }
-        }
 
-        for (let i = this.allBullets.length - 1; i >= 0; i--) {
-            let bullet = this.allBullets[i];
-            let collided = this.checkCollision(bullet);
-            if (collided) {
-                this.app.stage.removeChild(collided.tank.body);
-                this.tanks.splice(collided.tankIndex, 1);
-                collided.tank.setAlive(false)
+            // Loop through Team B tanks
+            for (let t = 0; t < this.teamB.length; t++) {
+                let tank = this.teamB[t];
+                let firedBullets = tank.update(delta, this.physicalMap, this.player, this.collisionLines, this.allBullets, this.teamB, this.teamA, this.app)
 
-                this.app.stage.removeChild(bullet.body);
-                bullet.owner.firedBullets -= 1
-                this.allBullets.splice(i, 1)
-            } else {
-                bullet.update(delta, this.collisionLines, this.allBullets);
+                if (firedBullets && firedBullets.length > 0) {
+                    for (let i = 0; i < firedBullets.length; i++) {
+                        this.app.stage.addChild(firedBullets[i].body);
+                        this.allBullets.push(firedBullets[i])
+                    }
 
-                if (bullet.toDestroy) {
+                }
+            }
+
+            for (let i = this.allBullets.length - 1; i >= 0; i--) {
+                let bullet = this.allBullets[i];
+                let collided = this.checkCollision(bullet);
+                if (collided) {
+                    this.app.stage.removeChild(collided.tank.body);
+                    this.tanks.splice(collided.tankIndex, 1);
+                    collided.tank.setAlive(false)
+
+                    // Loop through team A and B to find and remove the tank
+                    for (let t = this.teamA.length - 1; t >= 0; t--) {
+                        if (this.teamA[t] == collided.tank) {
+                            this.teamA.splice(t, 1);
+                        }
+                    }
+
+                    for (let t = this.teamB.length - 1; t >= 0; t--) {
+                        if (this.teamB[t] == collided.tank) {
+                            this.teamB.splice(t, 1);
+                        }
+                    }
+
                     this.app.stage.removeChild(bullet.body);
                     bullet.owner.firedBullets -= 1
                     this.allBullets.splice(i, 1)
+                } else {
+                    bullet.update(delta, this.collisionLines, this.allBullets);
+
+                    if (bullet.toDestroy) {
+                        this.app.stage.removeChild(bullet.body);
+                        bullet.owner.firedBullets -= 1
+                        this.allBullets.splice(i, 1)
+                    }
                 }
             }
-        }
-
-        // Level system
-        if (!this.player.isAlive()) {
-            this.reloadCurrentLevel();
-        }
-
-        if (this.loadedLevel && this.tanks.length === 1 && this.tanks[0] === this.player) {
-            this.advanceToNextLevel();
         }
     }
 

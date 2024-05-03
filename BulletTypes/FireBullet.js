@@ -12,7 +12,8 @@ export class FireBullet {
 
         // Yellow bullet
         const bullet = new PIXI.Graphics();
-        bullet.beginFill(0x000ff);
+        // bullet.beginFill(0x000ff); // Use blue when debugging
+        bullet.beginFill(0xff0000);
         bullet.drawCircle(0, 0, this.bulletRadius);
         bullet.endFill();
         this.body.addChild(bullet);

@@ -2,10 +2,9 @@ import { Bullet } from "./BulletTypes/Bullet.js"
 
 // player.js
 export class Player {
-    constructor(x, y, width, height, speed, app) {
+    constructor(x, y, width, height, speed) {
         this.body = PIXI.Sprite.from(PIXI.Texture.WHITE);
         this.body.tint = 0x0000dd;
-        this.app = app;
 
         this.setPosition(x, y);
         this.setSize(width, height);
@@ -73,7 +72,7 @@ export class Player {
     }
 
     isAlive() {
-        return this.alive
+        return this.alive;
     }
 
     setAlive(alive) {

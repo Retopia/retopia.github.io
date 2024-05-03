@@ -82,7 +82,7 @@ export class Bullet {
 
         // Cross product to determine if parallel
         let cross = d1x * d2y - d1y * d2x;
-        if (Math.abs(cross) < 1e-8) return null; // Lines are parallel or coincident
+        if (Math.abs(cross) < 1e-10) return null; // Lines are parallel or coincident
 
         // Calculate the intersection t value
         let t = ((bStart.x - aStart.x) * d2y - (bStart.y - aStart.y) * d2x) / cross;

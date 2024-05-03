@@ -22,7 +22,7 @@ export class PinkTank {
         this.maxBullets = 5;
 
         this.shotDelayAccumulator = 0;
-        this.shotDelay = 0;
+        this.shotDelay = Math.random() * (50 - 20) + 20;
 
         this.targetDestination = null;
 
@@ -37,6 +37,9 @@ export class PinkTank {
         this.prevLine = null;
 
         this.alive = true;
+
+        // Between 0.35 and 0.65
+        this.reflectedShotThreshold = (Math.random() * (0.65 - 0.35) + 0.35).toFixed(2);
     }
 
     isAlive() {
@@ -200,7 +203,7 @@ export class PinkTank {
         return null;
     }
 
-    canShootDirectlyAtPlayer(player, collisionLines, allTanks) {
+    canShootDirectlyAtPlayer(player, collisionLines, myTeam, enemyTeam) {
         // Draw a straight line from the tank to the player and see if it intersects any collision lines
         let lineStart = new PIXI.Point(this.body.x, this.body.y);
         let lineEnd = new PIXI.Point(player.body.x, player.body.y);
@@ -215,9 +218,10 @@ export class PinkTank {
         }
 
         // Check if the line intersects with any other tank's bounding box
-        for (let i = 0; i < allTanks.length; i++) {
-            let tank = allTanks[i];
+        for (let i = 0; i < myTeam.length; i++) {
+            let tank = myTeam[i];
 
+            // With the team changes this should technically never trigger
             if (tank === this || tank === player) {
                 continue;
             }
@@ -230,9 +234,9 @@ export class PinkTank {
         return true;
     }
 
-    canShootReflectedAtPlayer(player, collisionLines, allTanks) {
+    canShootReflectedAtPlayer(player, collisionLines, myTeam, enemyTeam) {
         let tankPosition = new PIXI.Point(this.body.x + this.body.width, this.body.y + this.body.height);
-        let playerPosition = new PIXI.Point(player.body.x, player.body.y);
+        let playerPosition = new PIXI.Point(player.body.x + player.body.width / 2, player.body.y + player.body.height / 2);
         let potentialShots = [];
 
         for (let i = 0; i < collisionLines.length; i++) {
@@ -265,13 +269,12 @@ export class PinkTank {
                     }
 
                     // Check if the path from the tank to the aimPoint intersects with any other tanks
-                    for (let j = 0; j < allTanks.length; j++) {
-                        let tank = allTanks[j];
+                    for (let j = 0; j < myTeam.length; j++) {
+                        let tank = myTeam[j];
                         if (tank !== this && tank !== player) {
                             let tankBounds = tank.body.getBounds();
                             let expandedBounds = new PIXI.Rectangle(tankBounds.x - 1, tankBounds.y - 1, tankBounds.width + 2, tankBounds.height + 2)
                             if (this.isPathIntersectingRectangle({ start: tankPosition, end: aimPoint }, expandedBounds)) {
-                                console.log("bb to")
                                 isPathObstructed = true;
                                 break;
                             }
@@ -279,13 +282,12 @@ export class PinkTank {
                     }
 
                     // Check if the path from the aimPoint to the player intersects with any other tanks
-                    for (let j = 0; j < allTanks.length; j++) {
-                        let tank = allTanks[j];
+                    for (let j = 0; j < myTeam.length; j++) {
+                        let tank = myTeam[j];
                         if (tank !== this && tank !== player) {
                             let tankBounds = tank.body.getBounds();
                             let expandedBounds = new PIXI.Rectangle(tankBounds.x - 1, tankBounds.y - 1, tankBounds.width + 2, tankBounds.height + 2)
                             if (this.isPathIntersectingRectangle({ start: aimPoint, end: playerPosition }, expandedBounds)) {
-                                console.log("bb end")
                                 isPathObstructed = true;
                                 break;
                             }
@@ -458,11 +460,31 @@ export class PinkTank {
         return cell.getCellType() === 'wall' || cell.getCellType() === 'hole';
     }
 
-    update(delta, mapWalls, player, collisionLines, allBullets, allTanks) {
+    getClosestTarget(enemyTeam) {
+        let res = enemyTeam[0];
+        let distance = this.distance(new PIXI.Point(this.body.x, this.body.y),
+            new PIXI.Point(enemyTeam[0].body.x, enemyTeam[0].body.y));
+
+        for (let t = 1; t < enemyTeam.length; t++) {
+            let currTank = enemyTeam[t];
+            let currDistance = this.distance(new PIXI.Point(this.body.x, this.body.y),
+                new PIXI.Point(currTank.body.x, currTank.body.y));
+
+            if (currDistance < distance) {
+                distance = currDistance;
+                res = currTank;
+            }
+        }
+
+        return res;
+    }
+
+    update(delta, mapWalls, player, collisionLines, allBullets, myTeam, enemyTeam) {
         let res = [];
         let cellHeight = 20;
         let cellWidth = 20;
         let canShoot = false;
+        player = this.getClosestTarget(enemyTeam);
 
         // if (this.targetDestination) {
         //     mapWalls[this.targetDestination.row][this.targetDestination.col].body.tint = 0x0000FF;
@@ -498,9 +520,9 @@ export class PinkTank {
         } else if (canShoot) {
             const seed = Math.random();
             // Randomize between shooting reflected and direct shot
-            if (seed >= 0.4) {
+            if (seed >= this.reflectedShotThreshold) {
                 // Direct shot
-                if (this.canShootDirectlyAtPlayer(player, collisionLines, allTanks)) {
+                if (this.canShootDirectlyAtPlayer(player, collisionLines, myTeam, enemyTeam)) {
                     // Rotate the turret towards the player
                     this.rotateTurret(player.body.x + player.body.width / 2, player.body.y + player.body.height / 2);
                     let returnedBullet = this.fireBullet();
@@ -510,7 +532,7 @@ export class PinkTank {
                 }
             } else {
                 // Reflected shot
-                let shootingPoint = this.canShootReflectedAtPlayer(player, collisionLines, allTanks);
+                let shootingPoint = this.canShootReflectedAtPlayer(player, collisionLines, myTeam, enemyTeam);
                 if (shootingPoint) {
                     this.rotateTurret(shootingPoint.x, shootingPoint.y);
                     let returnedBullet = this.fireBullet();
