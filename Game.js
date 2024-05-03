@@ -422,7 +422,7 @@ export class Game {
             line.lineStyle(3, 0xFF00FF)
                 .moveTo(lineCoords[0], lineCoords[1])
                 .lineTo(lineCoords[2], lineCoords[3]);
-            this.app.stage.addChild(line);
+            // this.app.stage.addChild(line);
             lineCoords.push(line)
             this.collisionLines.push(lineCoords);
         });
