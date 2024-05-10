@@ -22,7 +22,7 @@ export class GreyTank {
         this.maxBullets = 3;
 
         this.shotDelayAccumulator = 0;
-        this.shotDelay = Math.random() * (300 - 80) + 80;
+        this.shotDelay = Math.random() * (100 - 10) + 10;
 
         this.targetDestination = null;
 
@@ -37,6 +37,10 @@ export class GreyTank {
         this.prevLine = null;
 
         this.alive = true;
+
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.movementAngle = 0;
     }
 
     isAlive() {
@@ -611,7 +615,7 @@ export class GreyTank {
                     }
                 }
             }
-            
+
 
             if (changePath && (this.wallPathChangeTimeAccumulator > this.wallPathChangeTime)) {
                 this.wallPathChangeTimeAccumulator = 0;
@@ -624,7 +628,17 @@ export class GreyTank {
                 this.path = this.pathfinder.findPath({ x: currentCell.col, y: currentCell.row },
                     { x: this.targetDestination.col, y: this.targetDestination.row });
             }
+
+            // Calculate velocity based on the new position
+            this.velocityX = this.body.x - prevX;
+            this.velocityY = this.body.y - prevY;
+
+            if (this.velocityX !== 0 || this.velocityY !== 0) {
+                this.movementAngle = Math.atan2(this.velocityY, this.velocityX);
+            }
+
         }
+
         return res;
     }
 }

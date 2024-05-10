@@ -33,6 +33,11 @@ export class BrownTank {
         this.prevLine = null;
 
         this.alive = true;
+
+        // This is permanently 0 due to Brown Tanks being stationary
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.movementAngle = 0;
     }
 
     isAlive() {

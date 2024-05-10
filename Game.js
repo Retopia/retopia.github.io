@@ -15,8 +15,8 @@ export class Game {
             backgroundColor: 0xffffff
         });
 
-        this.file = "./Maps/level1.txt"; // Start from level 1
-        this.currentLevel = 1; // Add a property to track the current level
+        this.file = "./Maps/level0.txt"; // Start from level 1
+        this.currentLevel = 0; // Add a property to track the current level
 
         this.physicalMap = []; // All the physical walls
         this.tanks = [];
@@ -41,7 +41,21 @@ export class Game {
         this.teamB = [];
 
         this.isPlayerPlayable = true;
-        this.playerSelectorValue = 'player';
+        this.playerSelectorValue = 'rl';
+
+        // For the RL
+        this.episodeCount = 0;
+        this.trainingCount = 0;
+
+        // Add a property to track the last frame time
+        this.lastFrameTime = performance.now(); // Start with the current time
+        this.frameCount = 0;
+        this.totalElapsedTime = 0;
+
+        this.numberOfTrains = 0;
+        this.isTraining = false;
+        this.outputSize = 8;
+        this.gamma = 0.9
     }
 
     setup() {
@@ -109,6 +123,16 @@ export class Game {
                     event.target.value = '';
                 }
             }
+        });
+
+        document.getElementById('saveModelButton').addEventListener('click', (event) => {
+            // Specify the path or download location
+            const downloadPath = 'downloads://current_rl_model';
+
+            // Save the model, which will download both the model JSON and binary weights
+            RLTank.sharedModel.save(downloadPath);
+
+            console.log('Model has been downloaded.');
         });
     }
 
@@ -361,7 +385,6 @@ export class Game {
 
                         case 'rl':
                             newTank = new RLTank(j * this.cellWidth, i * this.cellHeight, 18, 18, 2);
-                            newTank.createModel();
                             break;
                     }
 
@@ -451,31 +474,175 @@ export class Game {
         }
     }
 
-
     async reloadCurrentLevel() {
         this.loadedLevel = false;
         let currentLevelFile = `./Maps/level${this.currentLevel}.txt`;
-
         try {
             const loadedData = await this.loadMapFromPath(currentLevelFile);
             if (loadedData) {
-                this.resetGame();
+                const finishedResetting = await this.resetGame();
                 this.updateMap(loadedData);
+                if (finishedResetting) {
+                    this.loadedLevel = true;
+                }
             } else {
                 console.error("Error reloading the current level.");
             }
         } catch (error) {
             console.error("Error reloading the current level:", error);
         }
-        this.loadedLevel = true;
     }
 
-    resetGame() {
+    async resetGame() {
         this.allBullets = [];
         this.tanks = [];
         this.teamA = [];
         this.teamB = [];
         this.app.stage.removeChildren();
+
+        if (this.player instanceof RLTank) {
+            if (this.replayBuffer.length >= 1000 && !this.isTraining && this.stepCount >= 1000) {
+                this.stepCount = 0;
+                // Batch training
+                this.trainModel(32);
+            }
+        }
+    }
+
+    async trainModel(batchSize) {
+        this.isTraining = true;
+        if (this.replayBuffer.length < batchSize) return;  // Ensure there are enough samples
+        let currWeights = this.getWeightsSnapshot(RLTank.sharedModel);
+        console.log("Current weight sum:", this.getSumOfModelWeights(RLTank.sharedModel));
+
+        // Create an array of indices and shuffle it
+        const indices = Array.from(Array(this.replayBuffer.length).keys());
+        this.shuffleArray(indices);  // Shuffle the array using the implemented function
+
+        // Slice the first 'batchSize' indices
+        const batchIndices = indices.slice(0, batchSize);
+
+        // Use these indices to select experiences from the replay buffer
+        const batch = batchIndices.map(index => this.replayBuffer[index]);
+
+        // Prepare tensors for the current states
+        const gridData = batch.map(exp => this.reshapeAndWrapGrid(exp.state[0]));
+        const gridTensor = tf.tensor4d(gridData);
+
+        const tankBulletData = batch.map(exp => exp.state[1]);
+        const tankBulletTensor = tf.tensor2d(tankBulletData, [batchSize, 65]);
+
+        // Extract actions and rewards
+        const actions = batch.map(exp => exp.action);
+        const rewards = batch.map(exp => exp.reward);
+        const rewardTensor = tf.tensor1d(rewards);
+
+        // Prepare tensors for the next states
+        const nextGridData = batch.map(exp => this.reshapeAndWrapGrid(exp.nextState[0]));
+        const nextGridTensor = tf.tensor4d(nextGridData);
+
+        const nextTankBulletData = batch.map(exp => exp.nextState[1]);
+        const nextTankBulletTensor = tf.tensor2d(nextTankBulletData, [batchSize, 65]);
+
+        // Predict current and next Q values
+        const currentQs = RLTank.sharedModel.predict([gridTensor, tankBulletTensor]);
+        const nextQs = RLTank.sharedModel.predict([nextGridTensor, nextTankBulletTensor]);
+
+        // Extract the max Q-value from the next state for each batch entry
+        const maxNextQsTensor = nextQs.max(1);
+        const maxNextQs = maxNextQsTensor.dataSync();  // Convert tensor to array
+
+        // Compute the target Q-values
+        const targets = currentQs.arraySync();
+        actions.forEach((action, index) => {
+            targets[index][action] = rewards[index] + this.gamma * maxNextQs[index];  // Bellman equation
+        });
+
+        // Prepare the tensor from the updated targets array
+        const targetsTensor = tf.tensor2d(targets, [batchSize, this.outputSize]);
+
+        // Train the model
+        const history = await RLTank.sharedModel.fit([gridTensor, tankBulletTensor], targetsTensor, {
+            epochs: 1,
+            batchSize
+        });
+
+        // Clean up to avoid memory leaks
+        gridTensor.dispose();
+        tankBulletTensor.dispose();
+        nextGridTensor.dispose();
+        nextTankBulletTensor.dispose();
+        rewardTensor.dispose();
+        maxNextQsTensor.dispose();
+        targetsTensor.dispose();
+
+        this.isTraining = false;
+        this.numberOfTrains += 1;
+        let newWeights = this.getWeightsSnapshot(RLTank.sharedModel);
+
+        console.log("Updated Weights:", this.areWeightsDifferent(currWeights, newWeights));
+    }
+
+    getWeightsSnapshot(model) {
+        return model.layers.map(layer => layer.getWeights().map(weightTensor => weightTensor.dataSync()));
+    }
+
+    areWeightsDifferent(weightsBefore, weightsAfter) {
+        return weightsBefore.some((layerWeights, i) =>
+            layerWeights.some((tensorWeights, j) =>
+                !tensorWeights.every((weight, k) => weight === weightsAfter[i][j][k])
+            )
+        );
+    }
+
+    getSumOfModelWeights(model) {
+        let totalSum = 0;
+
+        // Iterate through each layer in the model
+        model.layers.forEach(layer => {
+            // Get the weights of each layer
+            let weights = layer.getWeights();
+
+            // Sum up all weight values
+            weights.forEach(weight => {
+                // Convert to array and sum all elements
+                const weightValues = weight.dataSync();
+                totalSum += weightValues.reduce((acc, value) => acc + value, 0);
+            });
+        });
+
+        return totalSum;
+    }
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));  // Random index from 0 to i
+            [array[i], array[j]] = [array[j], array[i]];  // Swap elements
+        }
+    }
+
+    reshapeAndWrapGrid(flatGrid) {
+        try {
+            const reshapedGrid = this.reshapeArray(flatGrid, 30, 40);
+            return reshapedGrid.map(row => row.map(cell => [cell]));
+        } catch (error) {
+            console.error("Error reshaping grid data:", error);
+            return [];
+        }
+    }
+
+
+    reshapeArray(flatArray, numRows, numCols) {
+        if (flatArray.length !== numRows * numCols) {
+            throw new Error("Array length does not match expected dimensions.");
+        }
+        let reshaped = [];
+        for (let i = 0; i < numRows; i++) {
+            let start = i * numCols;
+            let end = start + numCols;
+            reshaped.push(flatArray.slice(start, end));
+        }
+        return reshaped;
     }
 
     isTeamADead() {
@@ -488,19 +655,46 @@ export class Game {
         return true;
     }
 
+    updateFPS() {
+        const currentFrameTime = performance.now();
+        const elapsedTime = currentFrameTime - this.lastFrameTime;
+        this.lastFrameTime = currentFrameTime;
+
+        this.frameCount += 1;
+        this.totalElapsedTime += elapsedTime;
+
+        // Calculate FPS once per second
+        if (this.totalElapsedTime >= 1000) {
+            const fps = this.frameCount;
+            this.frameCount = 0;
+            this.totalElapsedTime = 0;
+
+            const fpsLabel = document.getElementById('fpsLabel');
+            if (fpsLabel) {
+                fpsLabel.innerText = `FPS: ${fps}`;
+            }
+        }
+    }
+
     gameLoop(delta) {
         this.stepCount += 1;
 
-        // Level system
-        if (this.isTeamADead()) {
-            this.reloadCurrentLevel();
-        }
-
-        if (this.loadedLevel && this.tanks.length === 1 && this.tanks[0] === this.player) {
-            this.advanceToNextLevel();
-        }
-
         if (this.loadedLevel) {
+            this.updateFPS();
+
+            // Level system
+            if (this.teamA.length == 0) {
+                this.reloadCurrentLevel();
+                this.episodeCount += 1;
+                console.log("Episode:", this.episodeCount, "Final Reward:", this.player.reward, "Times Trained:", this.numberOfTrains);
+                return;
+            }
+
+            if (this.tanks.length === 1 && this.tanks[0] === this.player) {
+                this.advanceToNextLevel();
+                return;
+            }
+
             this.updateGridDangerValues(this.allBullets, this.player, 1.0, 1.0, 25);
             // this.updateGridColors(0.5);
 
@@ -540,6 +734,10 @@ export class Game {
                     let returnedData = tank.update(delta, this.physicalMap, this.player, this.collisionLines, this.allBullets, this.teamA, this.teamB, this.replayBuffer, this.stepCount)
                     firedBullets = returnedData[0];
                     this.replayBuffer.push(returnedData[1]);
+
+                    if (returnedData[2]) {
+                        this.numberOfTrains += 1;
+                    }
 
                     if (this.replayBuffer.length > this.replayBufferSize) {
                         this.replayBuffer.shift();  // Remove the oldest experience if the buffer is full

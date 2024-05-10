@@ -20,6 +20,11 @@ export class Bullet {
 
         // Set position
         this.body.position.set(x, y);
+        
+        // Initialize velocity and direction properties
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.angle = 0;  // New property to store the firing angle
     }
 
     // We simply treat the bullet as a small line for collision detection so its faster and easier to handle
@@ -98,6 +103,7 @@ export class Bullet {
     }
 
     fire(angle) {
+        this.angle = angle;
         this.velocityX = Math.cos(angle) * this.bulletSpeed;
         this.velocityY = Math.sin(angle) * this.bulletSpeed;
         this.body.rotation = angle
