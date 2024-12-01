@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        @font-face {
+            font-family: 'DeterminationMono';
+            src: url('https://cdnjs.cloudflare.com/ajax/libs/determinationfonts/1.0/determinationsansweb-webfont.woff') format('woff');
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: black;
+            color: white;
+            font-family: 'DeterminationMono', monospace;
+            height: 100vh;
+            overflow: hidden;
+            cursor: default;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .text {
+            font-size: 24px;
+            margin: 20px;
+            letter-spacing: 2px;
+        }
+
+        .glitch {
+            animation: glitch 1s linear infinite;
+            position: relative;
+        }
+
+        @keyframes glitch {
+
+            2%,
+            64% {
+                transform: translate(2px, 0) skew(0deg);
+            }
+
+            4%,
+            60% {
+                transform: translate(-2px, 0) skew(0deg);
+            }
+
+            62% {
+                transform: translate(0, 0) skew(5deg);
+            }
+        }
+
+        .glitch:before,
+        .glitch:after {
+            content: attr(data-text);
+            position: absolute;
+            left: 0;
+        }
+
+        .glitch:before {
+            animation: glitchTop 1s linear infinite;
+            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+            -webkit-clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+        }
+
+        @keyframes glitchTop {
+
+            2%,
+            64% {
+                transform: translate(2px, -2px);
+            }
+
+            4%,
+            60% {
+                transform: translate(-2px, 2px);
+            }
+
+            62% {
+                transform: translate(13px, -1px) skew(-13deg);
+            }
+        }
+
+        .glitch:after {
+            animation: glitchBottom 1.5s linear infinite;
+            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+            -webkit-clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+        }
+
+        @keyframes glitchBottom {
+
+            2%,
+            64% {
+                transform: translate(-2px, 0);
+            }
+
+            4%,
+            60% {
+                transform: translate(-2px, 0);
+            }
+
+            62% {
+                transform: translate(-22px, 5px) skew(21deg);
+            }
+        }
+
+        .options {
+            margin-top: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .option {
+            padding: 10px 20px;
+            border: 2px solid white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .option:hover {
+            background: white;
+            color: black;
+            transform: translateX(5px);
+        }
+
+        .corrupted {
+            font-family: monospace;
+            color: red;
+            text-shadow: 2px 2px blue;
+            animation: corrupt 0.3s infinite;
+        }
+
+        @keyframes corrupt {
+            0% {
+                transform: translate(0px, 0px) skew(0deg);
+            }
+
+            20% {
+                transform: translate(-2px, 2px) skew(2deg);
+            }
+
+            40% {
+                transform: translate(2px, -2px) skew(-2deg);
+            }
+
+            60% {
+                transform: translate(-2px, -2px) skew(1deg);
+            }
+
+            80% {
+                transform: translate(2px, 2px) skew(-1deg);
+            }
+
+            100% {
+                transform: translate(0px, 0px) skew(0deg);
+            }
+        }
+
+        #voidCounter {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+        }
+
+        .error {
+            color: red;
+            position: absolute;
+            opacity: 0;
+        }
+
+        .floating-text {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.3);
+            pointer-events: none;
+            font-size: 16px;
+            animation: fadeIn 2s forwards;
+            text-shadow: 1px 1px 2px rgba(255, 0, 0, 0.5);
+            z-index: -1;
+            will-change: transform, opacity;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .blurred {
+            filter: blur(1px);
+            animation: blurIn 2s forwards;
+        }
+
+        @keyframes blurIn {
+            from {
+                filter: blur(0px);
+            }
+
+            to {
+                filter: blur(1px);
+            }
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="overlay"></div>
+    <div id="voidCounter">VOID: 0</div>
+    <div class="container">
+        <div class="text glitch" data-text="* All things tend toward entropy...">* All things tend toward entropy...
+        </div>
+
+        <div class="options">
+            <div class="option" onclick="incrementVoid(this)">❤️ PROCEED</div>
+            <div class="option" onclick="incrementVoid(this)">RESET</div>
+            <div class="option" onclick="incrementVoid(this)">ESCAPE</div>
+        </div>
+    </div>
+
+    <script>
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playGlitchSound() {
+            if (!audioCtx) return;
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.frequency.setValueAtTime(Math.random() * 1000 + 200, audioCtx.currentTime);
+            oscillator.type = 'sawtooth';
+
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function playButtonSound() {
+            if (!audioCtx) return;
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+            oscillator.type = 'sine';
+
+            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.2);
+        }
+
+        let voidCount = 0;
+        const texts = [
+            "* All things tend toward entropy...",
+            "* The void remembers everything.",
+            "* Time moves only in one direction.",
+            "* Memory fades to static.",
+            "* The space between moments grows wider.",
+            "* Even light cannot escape forever.",
+            "* Decay is just another form of change.",
+            "* Nothing truly disappears.",
+            "* The silence between heartbeats lengthens.",
+            "* We are all stars burning out."
+        ];
+
+        function addFloatingText() {
+            const overlay = document.querySelector('.overlay');
+            const text = document.createElement('div');
+            text.className = 'floating-text';
+            text.style.left = Math.random() * window.innerWidth + 'px';
+            text.style.top = Math.random() * window.innerHeight + 'px';
+            text.textContent = texts[Math.floor(Math.random() * texts.length)];
+
+            if (Math.random() < 0.3) {
+                text.style.textShadow = `${Math.random() * 10 - 5}px ${Math.random() * 10 - 5}px 4px rgba(255,0,0,0.5)`;
+            }
+
+            overlay.appendChild(text);
+
+            if (overlay.children.length > 10000) {
+                overlay.removeChild(overlay.firstChild);
+            }
+        }
+
+        function incrementVoid(element) {
+            initAudio();
+
+            voidCount++;
+            document.getElementById('voidCounter').textContent = `VOID: ${voidCount}`;
+
+            playButtonSound();
+
+            const numTexts = Math.floor(Math.pow(voidCount, 1.2) / 3) + 1;
+            for (let i = 0; i < numTexts; i++) {
+                setTimeout(() => {
+                    addFloatingText();
+                    playGlitchSound();
+                }, i * 100);
+            }
+
+            const overlay = document.querySelector('.overlay');
+            if (overlay.children.length > 30) {
+                document.querySelector('.container').classList.add('blurred');
+            }
+
+            const error = document.createElement('div');
+            error.className = 'error';
+            error.style.left = Math.random() * window.innerWidth + 'px';
+            error.style.top = Math.random() * window.innerHeight + 'px';
+            error.textContent = 'ERROR_' + Math.floor(Math.random() * 9999);
+            document.body.appendChild(error);
+
+            error.style.transition = 'opacity 0.5s';
+            error.style.opacity = '1';
+            setTimeout(() => {
+                error.style.opacity = '0';
+                setTimeout(() => error.remove(), 500);
+            }, 1000);
+
+            if (Math.random() < 0.3) {
+                const text = document.querySelector('.text');
+                text.textContent = texts[Math.floor(Math.random() * texts.length)];
+                text.dataset.text = text.textContent;
+                playGlitchSound();
+            }
+
+            if (Math.random() < 0.2) {
+                element.textContent = element.textContent.split('').map(char =>
+                    Math.random() < 0.3 ? String.fromCharCode(char.charCodeAt(0) + Math.floor(Math.random() * 5)) : char
+                ).join('');
+                playGlitchSound();
+            }
+
+            if (Math.random() < 0.15) {
+                const elements = document.querySelectorAll('.option');
+                elements[Math.floor(Math.random() * elements.length)].classList.add('corrupted');
+                playGlitchSound();
+            }
+
+            document.body.style.transform = `translate(${Math.random() * 4 - 2}px, ${Math.random() * 4 - 2}px)`;
+            setTimeout(() => {
+                document.body.style.transform = 'none';
+            }, 100);
+        }
+    </script>
+</body>
+
+</html>
